@@ -22,3 +22,13 @@ async def admin_panel_btn(message: Message):
 @router.message(F.text == "⬅ В меню")
 async def back_to_menu(message: Message):
     await message.answer("Главное меню", reply_markup=user_kb(True))
+
+@router.message(F.text == "➕ Добавить новость")
+async def add_news(message: Message):
+    if message.from_user.id in ADMINS:
+        await message.answer("Функция добавления новости будет тут")
+
+@router.message(F.text == "📢 Рассылка")
+async def mailing(message: Message):
+    if message.from_user.id in ADMINS:
+        await message.answer("Функция рассылки будет тут")
