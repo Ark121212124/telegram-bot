@@ -1,11 +1,11 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message
-from database import cursor, conn
+from database import cursor
 
 router = Router()
 
-@router.message(lambda m: m.text == "📰 Новости")
-async def show_news(message: Message):
+@router.message(F.text == "📰 Новости")
+async def news(message: Message):
     cursor.execute("SELECT * FROM news ORDER BY id DESC")
     rows = cursor.fetchall()
 
