@@ -3,7 +3,7 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
 from config import ADMINS
-from keyboards.admin_kb import admin_kb
+from keyboards.admin_kb import admin_kb, manage_news_kb, edit_fields_kb
 from keyboards.user_kb import user_kb
 from utils.states import AddNewsState, ManageNewsState
 from database import cursor, conn
@@ -78,7 +78,7 @@ async def add_news_link(message: Message, state: FSMContext):
     )
     conn.commit()
 
-    await message.answer("Новость успешно добавлена!", reply_markup=admin_kb)
+    await message.answer("Новость добавлена!", reply_markup=admin_kb)
     await state.clear()
 
 
@@ -93,10 +93,10 @@ async def manage_news(message: Message, state: FSMContext):
     rows = cursor.fetchall()
 
     if not rows:
-        await message.answer("Новостей пока нет.")
+        await message.answer("Новостей нет.")
         return
 
-    text = "Выберите номер новости:\n\n"
+    text = "Введите номер новости:\n\n"
     for row in rows:
         text += f"{row[0]}. {row[1]}\n"
 
@@ -114,31 +114,79 @@ async def choose_news(message: Message, state: FSMContext):
 
     cursor.execute("SELECT id FROM news WHERE id=?", (news_id,))
     if not cursor.fetchone():
-        await message.answer("Такой новости не существует.")
+        await message.answer("Новость не найдена.")
         return
 
     await state.update_data(news_id=news_id)
-
-    await message.answer("Что сделать?\n\n✏ Редактировать\n🗑 Удалить")
+    await message.answer("Выберите действие:", reply_markup=manage_news_kb)
     await state.set_state(ManageNewsState.action)
 
+
+# ---------- УДАЛЕНИЕ ----------
 
 @router.message(ManageNewsState.action, F.text == "🗑 Удалить")
 async def delete_news(message: Message, state: FSMContext):
     data = await state.get_data()
-    news_id = data["news_id"]
 
-    cursor.execute("DELETE FROM news WHERE id=?", (news_id,))
+    cursor.execute("DELETE FROM news WHERE id=?", (data["news_id"],))
     conn.commit()
 
     await message.answer("Новость удалена.", reply_markup=admin_kb)
     await state.clear()
 
 
+# ---------- РЕДАКТИРОВАНИЕ ----------
+
 @router.message(ManageNewsState.action, F.text == "✏ Редактировать")
-async def edit_news_stub(message: Message, state: FSMContext):
-    await message.answer(
-        "Редактирование будет добавлено позже.",
-        reply_markup=admin_kb
-    )
+async def edit_news(message: Message, state: FSMContext):
+    await message.answer("Что изменить?", reply_markup=edit_fields_kb)
+    await state.set_state(ManageNewsState.edit_field)
+
+
+@router.message(ManageNewsState.edit_field)
+async def choose_field(message: Message, state: FSMContext):
+    field_map = {
+        "Заголовок": "title",
+        "Текст": "text",
+        "Фото": "photo",
+        "Ссылка": "link"
+    }
+
+    if message.text == "⬅ Назад":
+        await message.answer("Админ панель", reply_markup=admin_kb)
+        await state.clear()
+        return
+
+    if message.text not in field_map:
+        await message.answer("Выберите кнопку.")
+        return
+
+    await state.update_data(field=field_map[message.text])
+
+    if message.text == "Фото":
+        await message.answer("Отправьте новое фото:")
+    else:
+        await message.answer("Введите новое значение:")
+
+    await state.set_state(ManageNewsState.new_value)
+
+
+@router.message(ManageNewsState.new_value)
+async def update_value(message: Message, state: FSMContext):
+    data = await state.get_data()
+    news_id = data["news_id"]
+    field = data["field"]
+
+    if field == "photo":
+        if not message.photo:
+            await message.answer("Нужно отправить фото.")
+            return
+        value = message.photo[-1].file_id
+    else:
+        value = message.text
+
+    cursor.execute(f"UPDATE news SET {field}=? WHERE id=?", (value, news_id))
+    conn.commit()
+
+    await message.answer("Новость обновлена!", reply_markup=admin_kb)
     await state.clear()
