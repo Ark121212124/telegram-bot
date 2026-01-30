@@ -1,10 +1,13 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
+def user_kb(is_admin=False):
+    kb = [
         [KeyboardButton(text="📰 Новости")],
         [KeyboardButton(text="📞 Контакты"), KeyboardButton(text="✉ Обратная связь")],
         [KeyboardButton(text="🔔 Подписка")]
-    ],
-    resize_keyboard=True
-)
+    ]
+
+    if is_admin:
+        kb.append([KeyboardButton(text="🛠 Админ панель")])
+
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
