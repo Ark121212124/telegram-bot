@@ -1,32 +1,35 @@
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+
 from config import ADMINS
 from keyboards.admin_kb import admin_kb
 from keyboards.user_kb import user_kb
-from utils.states import AddNewsState
+from utils.states import AddNewsState, ManageNewsState
 from database import cursor, conn
 
 router = Router()
 
-# ===== ВХОД В АДМИНКУ =====
+# ================= ВХОД В АДМИНКУ =================
 
 @router.message(F.text == "/admin")
 async def admin_panel_cmd(message: Message):
     if message.from_user.id in ADMINS:
         await message.answer("Админ панель", reply_markup=admin_kb)
 
+
 @router.message(F.text == "🛠 Админ панель")
 async def admin_panel_btn(message: Message):
     if message.from_user.id in ADMINS:
         await message.answer("Админ панель", reply_markup=admin_kb)
+
 
 @router.message(F.text == "⬅ В меню")
 async def back_to_menu(message: Message):
     await message.answer("Главное меню", reply_markup=user_kb(True))
 
 
-# ===== ДОБАВЛЕНИЕ НОВОСТИ =====
+# ================= ДОБАВЛЕНИЕ НОВОСТИ =================
 
 @router.message(F.text == "➕ Добавить новость")
 async def add_news_start(message: Message, state: FSMContext):
@@ -68,16 +71,60 @@ async def add_news_photo(message: Message, state: FSMContext):
 async def add_news_link(message: Message, state: FSMContext):
     data = await state.get_data()
 
-    title = data["title"]
-    text = data["text"]
-    photo = data["photo"]
-    link = message.text
-
     cursor.execute(
         "INSERT INTO news(title, text, photo, link) VALUES(?,?,?,?)",
-        (title, text, photo, link)
+        (data["title"], data["text"], data["photo"], message.text)
     )
     conn.commit()
 
     await message.answer("Новость успешно добавлена!", reply_markup=admin_kb)
     await state.clear()
+
+
+# ================= УПРАВЛЕНИЕ НОВОСТЯМИ =================
+
+@router.message(F.text == "🗂 Управление новостями")
+async def manage_news(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+
+    cursor.execute("SELECT id, title FROM news ORDER BY id DESC")
+    rows = cursor.fetchall()
+
+    if not rows:
+        await message.answer("Новостей нет.")
+        return
+
+    text = "Выбери номер новости:\n\n"
+    for row in rows:
+        text += f"{row[0]}. {row[1]}\n"
+
+    await message.answer(text)
+    await state.set_state(ManageNewsState.choose_id)
+
+
+@router.message(ManageNewsState.choose_id)
+async def choose_news(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("Введите номер цифрами.")
+        return
+
+    news_id = int(message.text)
+
+    cursor.execute("SELECT id FROM news WHERE id=?", (news_id,))
+    if not cursor.fetchone():
+        await message.answer("Такой новости нет.")
+        return
+
+    await state.update_data(news_id=news_id)
+
+    await message.answer("Что сделать?\n\n✏ Редактировать\n🗑 Удалить")
+    await state.set_state(ManageNewsState.action)
+
+
+@router.message(ManageNewsState.action, F.text == "🗑 Удалить")
+async def delete_news(message: Message, state: FSMContext):
+    data = await state.get_data()
+    news_id = data["news_id"]
+
+    cursor.execute("DELETE FROM new
