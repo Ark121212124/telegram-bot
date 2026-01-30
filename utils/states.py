@@ -1,6 +1,7 @@
 from aiogram.fsm.state import State, StatesGroup
 
-class FeedbackState(StatesGroup):
-    name = State()
-    phone = State()
-    message = State()
+class AddNewsState(StatesGroup):
+    title = State()
+    text = State()
+    photo = State()
+    link = State()
