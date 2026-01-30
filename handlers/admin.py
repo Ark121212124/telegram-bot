@@ -26,7 +26,8 @@ async def admin_panel_btn(message: Message):
 
 @router.message(F.text == "⬅ В меню")
 async def back_to_menu(message: Message):
-    await message.answer("Главное меню", reply_markup=user_kb(True))
+    is_admin = message.from_user.id in ADMINS
+    await message.answer("Главное меню", reply_markup=user_kb(is_admin))
 
 
 # ================= ДОБАВЛЕНИЕ НОВОСТИ =================
@@ -57,7 +58,7 @@ async def add_news_text(message: Message, state: FSMContext):
 @router.message(AddNewsState.photo)
 async def add_news_photo(message: Message, state: FSMContext):
     if not message.photo:
-        await message.answer("Нужно отправить именно фото.")
+        await message.answer("Пожалуйста отправьте фото.")
         return
 
     photo_id = message.photo[-1].file_id
@@ -92,10 +93,10 @@ async def manage_news(message: Message, state: FSMContext):
     rows = cursor.fetchall()
 
     if not rows:
-        await message.answer("Новостей нет.")
+        await message.answer("Новостей пока нет.")
         return
 
-    text = "Выбери номер новости:\n\n"
+    text = "Выберите номер новости:\n\n"
     for row in rows:
         text += f"{row[0]}. {row[1]}\n"
 
@@ -113,7 +114,7 @@ async def choose_news(message: Message, state: FSMContext):
 
     cursor.execute("SELECT id FROM news WHERE id=?", (news_id,))
     if not cursor.fetchone():
-        await message.answer("Такой новости нет.")
+        await message.answer("Такой новости не существует.")
         return
 
     await state.update_data(news_id=news_id)
@@ -127,4 +128,17 @@ async def delete_news(message: Message, state: FSMContext):
     data = await state.get_data()
     news_id = data["news_id"]
 
-    cursor.execute("DELETE FROM new
+    cursor.execute("DELETE FROM news WHERE id=?", (news_id,))
+    conn.commit()
+
+    await message.answer("Новость удалена.", reply_markup=admin_kb)
+    await state.clear()
+
+
+@router.message(ManageNewsState.action, F.text == "✏ Редактировать")
+async def edit_news_stub(message: Message, state: FSMContext):
+    await message.answer(
+        "Редактирование будет добавлено позже.",
+        reply_markup=admin_kb
+    )
+    await state.clear()
