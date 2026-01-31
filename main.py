@@ -8,10 +8,11 @@ import database  # создаёт таблицы при запуске
 from handlers import (
     start,
     news,
+    contacts,
     subscribe,
     feedback,
     admin,
-    contacts
+    chat_welcome
 )
 
 
@@ -19,7 +20,8 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
 
-    # подключение роутеров
+    # порядок важен
+    dp.include_router(chat_welcome.router)  # приветствие в чатах
     dp.include_router(start.router)
     dp.include_router(news.router)
     dp.include_router(contacts.router)
